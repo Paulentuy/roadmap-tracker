@@ -10,7 +10,7 @@ A single-file, zero-dependency HTML roadmap tracker that an AI assistant (Claude
 
 ## ✨ What you get / Что внутри
 
-- **`roadmap-tracker.html`** — the tracker. Open it in any browser. Collapsible stages, per-stage and overall progress bars, checkboxes, auto dark mode. State is saved in your browser via `localStorage`.
+- **`roadmap-tracker.html`** — the tracker. Open it in any browser. Stages are **collapsed by default** (open the ones you want); an **"In focus now"** card surfaces your next tasks; a **"Hide completed"** filter declutters the view; **confetti** fires when you finish a task or a whole stage; per-stage and overall progress bars; auto dark mode. State is saved in your browser via `localStorage`.
 - **`CLAUDE_INSTRUCTIONS.md`** — copy-paste instructions for your Claude project so the assistant updates the tracker automatically.
 
 No build step, no server, no npm. It's one file. / Никакой сборки, сервера или npm — это один файл.
@@ -72,6 +72,15 @@ Copy a whole `<div class="stage stage-N" data-stage="N"> … </div>` block. The 
 | `stage-6` | brown |
 
 Add `expanded` to the stage div to have it open by default.
+
+### Pin the "In focus now" card / Закрепить блок «Сейчас в фокусе»
+Add `data-focus="1"` to the one stage you're actively working on:
+
+```html
+<div class="stage stage-2" data-stage="2" data-focus="1">
+```
+
+The card at the top then shows that stage's next unfinished tasks (click them there to mark done). If no stage has `data-focus`, the card auto-picks the first stage that isn't fully complete.
 
 ### The version trick / Трюк с версией
 Your checkbox clicks are stored in the browser. When the file's `data-version` changes, those local clicks are wiped and the statuses written in the file become the source of truth. So whenever you (or Claude) edit task statuses in the file, **bump `data-version`** on the `<html>` tag:
