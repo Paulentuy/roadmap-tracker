@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+   ROADMAP TRACKER — template / шаблон
+  ============================================================================
+  Single-file HTML roadmap tracker. No build, no server, no dependencies.
+  Open it in any browser. Click a checkbox to mark a task done — the state is
+  saved in your browser (localStorage).
+
+  HOW IT WORKS WITH CLAUDE / КАК РАБОТАЕТ С CLAUDE
+  ------------------------------------------------------------------------
+  This file is meant to be edited by an AI assistant (Claude) as your project
+  evolves. See README.md for the project-instructions snippet to paste into
+  your Claude project. In short, Claude will:
+    • mark tasks done   →  class="task"  becomes  class="task done"
+    • add new tasks     →  copy a <div class="task" ...> line into a stage
+    • bump the version  →  data-version="N"  (this resets local clicks so the
+                           "true" statuses from the file are shown)
+    • update the date   →  data-last-updated="YYYY-MM-DD"
+
+  HOW TO ADD A TASK / КАК ДОБАВИТЬ ЗАДАЧУ
+  ------------------------------------------------------------------------
+  Copy this line into the <div class="stage-body-inner"> of any stage.
+  data-task must be UNIQUE across the whole file (e.g. "s2-darkmode"):
+
+    <div class="task" data-task="UNIQUE-ID"><div class="task-checkbox"></div><div class="task-content"><div class="task-title">Task title<span class="task-difficulty">low</span></div><div class="task-note">optional note</div></div></div>
+
+  Mark it done by adding " done":  <div class="task done" data-task="...">
+  The <span class="task-difficulty"> and <div class="task-note"> are optional.
+
+  HOW TO ADD A STAGE / КАК ДОБАВИТЬ ЭТАП
+  ------------------------------------------------------------------------
+  Copy a whole <div class="stage stage-N" data-stage="N"> ... </div> block,
+  change N (1..6 controls the color stripe), the title, and the tasks.
+  ============================================================================
+-->
+<html lang="en" data-version="1" data-last-updated="2026-01-01">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roadmap Tracker</title>
+<style>
+  :root {
+    --bg: #f5f3ef;
+    --card-bg: #ffffff;
+    --text: #1a1a1a;
+    --text-muted: #6b6b6b;
+    --border: #e6e1d8;
+    --accent: #6b46c1;
+    --green: #10b981;
+    --yellow: #f59e0b;
+    --teal: #14b8a6;
+    --orange: #f97316;
+    --red: #ef4444;
+    --purple: #8b5cf6;
+    --brown: #78716c;
+    --done-bg: #d1fae5;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-hover: 0 4px 12px rgba(0,0,0,0.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1714;
+      --card-bg: #252119;
+      --text: #f5f3ef;
+      --text-muted: #a8a29e;
+      --border: #3a342a;
+      --done-bg: #064e3b;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 32px 16px;
+    min-height: 100vh;
+  }
+
+  .container { max-width: 920px; margin: 0 auto; }
+
+  header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding: 32px;
+    background: var(--card-bg);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+
+  h1 { font-size: 32px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.5px; }
+  .subtitle { color: var(--text-muted); font-size: 15px; margin-bottom: 24px; }
+
+  .meta {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+  .meta b { color: var(--text); font-weight: 600; }
+
+  .overall-progress {
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+  }
+  .overall-progress-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .progress-bar {
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--accent));
+    border-radius: 4px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .stage {
+    background: var(--card-bg);
+    border-radius: 16px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .stage:hover { box-shadow: var(--shadow-hover); }
+
+  .stage-header {
+    padding: 20px 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    user-select: none;
+    position: relative;
+  }
+
+  .stage-color {
+    width: 6px;
+    height: 48px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .stage-1 .stage-color { background: var(--green); }
+  .stage-2 .stage-color { background: var(--yellow); }
+  .stage-25 .stage-color { background: var(--teal); }
+  .stage-3 .stage-color { background: var(--orange); }
+  .stage-4 .stage-color { background: var(--red); }
+  .stage-5 .stage-color { background: var(--purple); }
+  .stage-6 .stage-color { background: var(--brown); }
+
+  .stage-info { flex: 1; min-width: 0; }
+  .stage-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stage-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .stage-badge.done { background: var(--done-bg); color: var(--green); }
+  .stage-subtitle { color: var(--text-muted); font-size: 13px; }
+
+  .stage-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    min-width: 140px;
+  }
+  .stage-count {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .stage-progress {
+    width: 140px;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .stage-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .stage-1 .stage-progress-fill { background: var(--green); }
+  .stage-2 .stage-progress-fill { background: var(--yellow); }
+  .stage-25 .stage-progress-fill { background: var(--teal); }
+  .stage-3 .stage-progress-fill { background: var(--orange); }
+  .stage-4 .stage-progress-fill { background: var(--red); }
+  .stage-5 .stage-progress-fill { background: var(--purple); }
+  .stage-6 .stage-progress-fill { background: var(--brown); }
+
+  .stage-toggle {
+    font-size: 20px;
+    color: var(--text-muted);
+    transition: transform 0.3s;
+    margin-left: 4px;
+  }
+  .stage.expanded .stage-toggle { transform: rotate(90deg); }
+
+  .stage-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .stage.expanded .stage-body { max-height: 3000px; }
+
+  .stage-body-inner { padding: 0 24px 24px 46px; }
+
+  .task {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin: 2px 0;
+  }
+  .task:hover { background: var(--bg); }
+
+  .task-checkbox {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    background: var(--card-bg);
+    margin-top: 1px;
+  }
+  .task.done .task-checkbox {
+    background: var(--green);
+    border-color: var(--green);
+  }
+  .task-checkbox::after {
+    content: '';
+    width: 6px;
+    height: 10px;
+    border-right: 2px solid white;
+    border-bottom: 2px solid white;
+    transform: rotate(45deg) scale(0);
+    transition: transform 0.2s;
+    margin-bottom: 2px;
+  }
+  .task.done .task-checkbox::after { transform: rotate(45deg) scale(1); }
+
+  .task-content { flex: 1; min-width: 0; }
+  .task-title {
+    font-size: 15px;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+  .task.done .task-title {
+    text-decoration: line-through;
+    color: var(--text-muted);
+  }
+  .task-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .task-difficulty {
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text-muted);
+    margin-left: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    font-weight: 500;
+  }
+
+  .actions {
+    text-align: center;
+    margin-top: 32px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  button {
+    padding: 10px 20px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  button:hover { background: var(--bg); border-color: var(--accent); }
+  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  button.primary:hover { background: #5b3aa3; }
+
+  footer {
+    text-align: center;
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  footer code {
+    background: var(--card-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    border: 1px solid var(--border);
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 16px 8px; }
+    h1 { font-size: 24px; }
+    .stage-header { padding: 16px; gap: 12px; }
+    .stage-stats { min-width: 100px; }
+    .stage-progress { width: 80px; }
+    .stage-body-inner { padding: 0 16px 16px 34px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <!-- EDIT: your project name and tagline -->
+    <h1>🚀 My Project — Roadmap Tracker</h1>
+    <div class="subtitle">Long-term plan · from idea to launch</div>
+
+    <div class="meta">
+      <span>📌 Version: <b>v0.1</b></span>
+      <span>📅 Updated: <b id="lastUpdated">Jan 1, 2026</b></span>
+      <span>🔁 Tracker rev: <b id="trackerVersion">1</b></span>
+    </div>
+
+    <div class="overall-progress">
+      <div class="overall-progress-label">
+        <span>Overall progress</span>
+        <span id="overallText">0 / 0 (0%)</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="overallFill" style="width: 0%"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========== STAGE 1 (example, some tasks done) ========== -->
+  <div class="stage stage-1 expanded" data-stage="1">
+    <div class="stage-header" onclick="toggleStage(this)">
+      <div class="stage-color"></div>
+      <div class="stage-info">
+        <div class="stage-title">Stage 1 — Foundation <span class="stage-badge done">Done</span></div>
+        <div class="stage-subtitle">The basics are in place</div>
+      </div>
+      <div class="stage-stats">
+        <div class="stage-count" data-count></div>
+        <div class="stage-progress"><div class="stage-progress-fill" data-fill></div></div>
+      </div>
+      <div class="stage-toggle">▶</div>
+    </div>
+    <div class="stage-body">
+      <div class="stage-body-inner">
+        <div class="task done" data-task="s1-idea"><div class="task-checkbox"></div><div class="task-content"><div class="task-title">Define the idea and goals</div></div></div>
+        <div class="task done" data-task="s1-setup"><div class="task-checkbox"></div><div class="task-content"><div class="task-title">Initial setup<span class="task-difficulty">low</span></div><div class="task-note">An optional note shows up here</div></div></div>
+        <div class="task" data-task="s1-first"><div class="task-checkbox"></div><div class="task-content"><div class="task-title">First working version</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== STAGE 2 (example, in progress) ========== -->
+  <div class="stage stage-2 expanded" data-stage="2">
+    <div class="stage-header" onclick="toggleStage(this)">
+      <div class="stage-color"></div>
+      <div class="stage-info">
+        <div class="stage-title">Stage 2 — Build it out <span class="stage-badge">In progress</span></div>
+        <div class="stage-subtitle">Core features and polish</div>
+      </div>
+      <div class="stage-stats">
+        <div class="stage-count" data-count></div>
+        <div class="stage-progress"><div class="stage-progress-fill" data-fill></div></div>
+      </div>
+      <div class="stage-toggle">▶</div>
+    </div>
+    <div class="stage-body">
+      <div class="stage-body-inner">
+        <div class="task" data-task="s2-feature-a"><div class="task-checkbox"></div><div class="task-content"><div class="task-title">Feature A<span class="task-difficulty">medium</span></div></div></div>
+        <div class="task" data-task="s2-feature-b"><div class="task-checkbox"></div><div class="task-content"><div class="task-title">Feature B</div></div></div>
+        <div class="task" data-task="s2-polish"><div class="task-checkbox"></div><div class="task-content"><div class="task-title">Polish the UI<span class="task-difficulty">low</span></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== STAGE 3 (example, future) ========== -->
+  <div class="stage stage-3" data-stage="3">
+    <div class="stage-header" onclick="toggleStage(this)">
+      <div class="stage-color"></div>
+      <div class="stage-info">
+        <div class="stage-title">Stage 3 — Launch</div>
+        <div class="stage-subtitle">Ship it to the world</div>
+      </div>
+      <div class="stage-stats">
+        <div class="stage-count" data-count></div>
+        <div class="stage-progress"><div class="stage-progress-fill" data-fill></div></div>
+      </div>
+      <div class="stage-toggle">▶</div>
+    </div>
+    <div class="stage-body">
+      <div class="stage-body-inner">
+        <div class="task" data-task="s3-test"><div class="task-checkbox"></div><div class="task-content"><div class="task-title">Final testing</div></div></div>
+        <div class="task" data-task="s3-launch"><div class="task-checkbox"></div><div class="task-content"><div class="task-title">Public launch 🎉</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button onclick="expandAll()">▾ Expand all</button>
+    <button onclick="collapseAll()">▸ Collapse all</button>
+    <button onclick="resetLocal()">↻ Reset my clicks (restore from file)</button>
+  </div>
+
+  <footer>
+    <div><b>How to use:</b></div>
+    <div>Click a checkbox to mark a task done. State is saved in your browser (localStorage).</div>
+    <div>When the file is updated (new tracker rev) your local clicks reset and the "true" statuses from the file are shown.</div>
+    <div style="margin-top:12px;">
+      📂 Keep this file in your Claude project folder so the assistant can update it.<br>
+      🔁 See <code>README.md</code> for the Claude setup instructions.
+    </div>
+  </footer>
+</div>
+
+<script>
+(function() {
+  const VERSION = document.documentElement.getAttribute('data-version');
+  const LS_KEY = 'roadmap_tracker_state';
+  const LS_VERSION_KEY = 'roadmap_tracker_version';
+
+  // Reset localStorage when the file version changes
+  if (localStorage.getItem(LS_VERSION_KEY) !== VERSION) {
+    localStorage.removeItem(LS_KEY);
+    localStorage.setItem(LS_VERSION_KEY, VERSION);
+  }
+
+  // Load saved state on top of the defaults baked into the HTML
+  const savedState = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+  document.querySelectorAll('.task').forEach(task => {
+    const id = task.dataset.task;
+    if (id in savedState) {
+      task.classList.toggle('done', savedState[id]);
+    }
+  });
+
+  // Click a task to toggle it
+  document.querySelectorAll('.task').forEach(task => {
+    task.addEventListener('click', () => {
+      task.classList.toggle('done');
+      saveState();
+      updateProgress();
+    });
+  });
+
+  function saveState() {
+    const state = {};
+    document.querySelectorAll('.task').forEach(task => {
+      state[task.dataset.task] = task.classList.contains('done');
+    });
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  }
+
+  function updateProgress() {
+    let totalDone = 0, totalAll = 0;
+    document.querySelectorAll('.stage').forEach(stage => {
+      const tasks = stage.querySelectorAll('.task');
+      const done = stage.querySelectorAll('.task.done').length;
+      const total = tasks.length;
+      const pct = total === 0 ? 0 : Math.round(done / total * 100);
+
+      stage.querySelector('[data-count]').textContent = done + ' / ' + total;
+      stage.querySelector('[data-fill]').style.width = pct + '%';
+
+      totalDone += done;
+      totalAll += total;
+    });
+    const overallPct = totalAll === 0 ? 0 : Math.round(totalDone / totalAll * 100);
+    document.getElementById('overallText').textContent = totalDone + ' / ' + totalAll + ' (' + overallPct + '%)';
+    document.getElementById('overallFill').style.width = overallPct + '%';
+  }
+
+  window.toggleStage = function(headerEl) {
+    headerEl.parentElement.classList.toggle('expanded');
+  };
+  window.expandAll = function() {
+    document.querySelectorAll('.stage').forEach(s => s.classList.add('expanded'));
+  };
+  window.collapseAll = function() {
+    document.querySelectorAll('.stage').forEach(s => s.classList.remove('expanded'));
+  };
+  window.resetLocal = function() {
+    if (confirm('Reset your local clicks and restore statuses from the file?')) {
+      localStorage.removeItem(LS_KEY);
+      location.reload();
+    }
+  };
+
+  // Sync the visible tracker rev with data-version
+  const tvEl = document.getElementById('trackerVersion');
+  if (tvEl && VERSION) tvEl.textContent = VERSION;
+
+  // Last-updated date (parse as local date to avoid timezone -1 day shift)
+  const lastUpd = document.documentElement.getAttribute('data-last-updated');
+  if (lastUpd) {
+    const p = lastUpd.split('-');
+    const d = new Date(+p[0], (+p[1]) - 1, +p[2]);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    document.getElementById('lastUpdated').textContent = months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  }
+
+  updateProgress();
+})();
+</script>
+</body>
+</html>
